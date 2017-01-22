@@ -176,7 +176,7 @@ abstract class Queue extends \yii\base\Component
      */
     public function delay(Job &$job, $expire)
     {
-        $this->trigger(selef::EVENT_BEFORE_DELAY, $beforeEvent = new Event(['job' => $job, 'expire' => $expire]));
+        $this->trigger(self::EVENT_BEFORE_DELAY, $beforeEvent = new Event(['job' => $job, 'expire' => $expire]));
         if (!$beforeEvent->isValid) {
             return false;
         }
