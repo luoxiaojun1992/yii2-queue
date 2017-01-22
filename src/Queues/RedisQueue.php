@@ -70,9 +70,9 @@ class RedisQueue extends \UrbanIndo\Yii2\Queue\Queue
         $data = [];
         $delayed_queues = $this->db->zrange($this->delayKey, 0, -1);
         foreach ($delayed_queues as $delayed_queue) {
-            if (!$delayed_queue) {
+            if ($delayed_queue) {
                 $data = \yii\helpers\Json::decode($delayed_queue);
-                if ($data['expire'] >= date('Y-m-d H:i:s')) {
+                if ($data['expire'] <= date('Y-m-d H:i:s')) {
                     $this->db->zrem($this->delayKey, $delayed_queue);
                     break;
                 } else {
