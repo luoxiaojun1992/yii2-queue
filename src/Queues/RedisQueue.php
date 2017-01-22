@@ -68,16 +68,22 @@ class RedisQueue extends \UrbanIndo\Yii2\Queue\Queue
     protected function fetchJob()
     {
         $data = [];
-        $delayed_queues = $this->db->zrange($this->delayKey, 0, -1);
+
+        $this->db->watch($this->delayKey);
+
+        $multi = $this->db->multi();
+
+        $delayed_queues = $multi->zrange($this->delayKey, 0, -1);
         foreach ($delayed_queues as $delayed_queue) {
             if ($delayed_queue) {
                 $data = \yii\helpers\Json::decode($delayed_queue);
                 if ($data['expire'] <= date('Y-m-d H:i:s')) {
-                    $this->db->zrem($this->delayKey, $delayed_queue);
-                    break;
-                } else {
-                    $data = [];
+                    if ($multi->zrem($this->delayKey, $delayed_queue)->exec()) {
+                        break;
+                    }
                 }
+
+                $data = [];
             }
         }
 

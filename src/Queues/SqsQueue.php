@@ -110,6 +110,17 @@ class SqsQueue extends \UrbanIndo\Yii2\Queue\Queue
     }
 
     /**
+     * Delay a job to the zset. This contains implemention for database
+     * @param Job $job The job to delay.
+     * @param $expire Expire at.
+     * @return boolean whether operation succeed.
+     */
+    protected function delayJob(Job $job, $expire)
+    {
+
+    }
+
+    /**
      * Delete the job from the queue.
      *
      * @param Job $job The job to be deleted.

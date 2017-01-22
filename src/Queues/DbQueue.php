@@ -18,12 +18,12 @@ use UrbanIndo\Yii2\Queue\Job;
  * CREATE TABLE queue (
  *     id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
  *     status TINYINT NOT NULL DEFAULT 0,
- *     timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+ *     execute_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
  *     data BLOB
  * );
  *
  * The queue works under the asumption that the `id` fields is AUTO_INCREMENT and
- * the `timestamp` will be set using current timestamp.
+ * the `execute_time` will be set using current timestamp.
  *
  * For other implementation, override the `fetchLatestRow` method and `postJob`
  * method.
@@ -65,14 +65,14 @@ class DbQueue extends \UrbanIndo\Yii2\Queue\Queue
      * CREATE TABLE queue (
      *     id BIGINT NOT NULL PRIMARY KEY AUTO_INCREMENT,
      *     status TINYINT NOT NULL DEFAULT 0,
-     *     timestamp DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+     *     execute_time DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
      *     data LONGBLOB
      * );
      * ```
      * @var string
      */
     public $tableName = '{{%queue}}';
-    
+
     /**
      * Whether to do hard delete of the deleted job, instead of just flagging the
      * status.
@@ -106,7 +106,7 @@ class DbQueue extends \UrbanIndo\Yii2\Queue\Queue
         
         $job = $this->deserialize($row['data']);
         $job->id = $row['id'];
-        $job->header['timestamp'] = $row['timestamp'];
+        $job->header['execute_time'] = $row['execute_time'];
         
         return $job;
     }
@@ -121,13 +121,13 @@ class DbQueue extends \UrbanIndo\Yii2\Queue\Queue
      */
     protected function fetchLatestRow()
     {
-        return (new \yii\db\Query())
-                    ->select('*')
-                    ->from($this->tableName)
-                    ->where(['status' => self::STATUS_READY])
-                    ->orderBy(['id' => SORT_ASC])
-                    ->limit(1)
-                    ->one($this->db);
+        return $this->db->createCommand(
+            'SELECT * FROM ' . $this->tableName . ' WHERE status = :status AND execute_time <= :now FOR UPDATE ORDER BY execute_time ASC, id ASC LIMIT 1',
+            [
+                ':status' => self::STATUS_READY,
+                ':now' => date('Y-m-d H:i:s'),
+            ]
+        )->queryOne();
     }
     
     /**
@@ -159,7 +159,21 @@ class DbQueue extends \UrbanIndo\Yii2\Queue\Queue
     protected function postJob(Job $job)
     {
         return $this->db->createCommand()->insert($this->tableName, [
-            'timestamp' => new \yii\db\Expression('NOW()'),
+            'execute_time' => date('Y-m-d H:i:s'),
+            'data' => $this->serialize($job),
+        ])->execute() == 1;
+    }
+
+    /**
+     * Delay a job to the zset. This contains implemention for database
+     * @param Job $job The job to delay.
+     * @param $expire Expire at.
+     * @return boolean whether operation succeed.
+     */
+    protected function delayJob(Job $job, $expire)
+    {
+        return $this->db->createCommand()->insert($this->tableName, [
+            'execute_time' => $expire,
             'data' => $this->serialize($job),
         ])->execute() == 1;
     }
