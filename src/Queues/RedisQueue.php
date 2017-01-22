@@ -34,6 +34,12 @@ class RedisQueue extends \UrbanIndo\Yii2\Queue\Queue
      * @var string
      */
     public $key = 'queue';
+
+    /**
+     * The name of the key to store delayed queues.
+     * @var string
+     */
+    public $delayKey = 'queue:delayed';
     
     /**
      * @return void
@@ -61,11 +67,28 @@ class RedisQueue extends \UrbanIndo\Yii2\Queue\Queue
      */
     protected function fetchJob()
     {
-        $json = $this->db->lpop($this->key);
-        if ($json == false) {
-            return false;
+        $data = [];
+        $delyaed_queues = $this->db->zrange($this->delayKey, 0, -1)
+        foreach ($delayed_queues as $delayed_queue) {
+            if (!$delayed_queue) {
+                $data = \yii\helpers\Json::decode($delayed_queue);
+                if ($data['expire'] >= date('Y-m-d H:i:s')) {
+                    $this-db->zrem($this->delayKey, $delayed_queue);
+                    break;
+                } else {
+                    $data = [];
+                }
+            }
         }
-        $data = \yii\helpers\Json::decode($json);
+
+        if (!$data) {
+            $json = $this->db->lpop($this->key);
+            if ($json == false) {
+                return false;
+            }
+            $data = \yii\helpers\Json::decode($json);
+        }
+
         $job = $this->deserialize($data['data']);
         $job->id = $data['id'];
         $job->header['serialized'] = $data['data'];
@@ -83,6 +106,21 @@ class RedisQueue extends \UrbanIndo\Yii2\Queue\Queue
         return $this->db->rpush($this->key, \yii\helpers\Json::encode([
             'id' => uniqid('queue_', true),
             'data' => $this->serialize($job),
+        ]));
+    }
+
+    /**
+     * Delay a job to the zset. This contains implemention for database
+     * @param Job $job The job to delay.
+     * @param $expire Expire at.
+     * @return boolean whether operation succeed.
+     */
+    protected function delayJob(Job $job, $expire)
+    {
+        return $this->db->zadd($this->delayKey, \yii\helpers\Json::encode([
+            'id' => $job->id ? : uniqid('queue_', true),
+            'data' => empty($job->header['serialized']) ? $this->serialize($job) : $job->header['serialized'],
+            'expire' => $expire,
         ]));
     }
 
