@@ -34,9 +34,19 @@ abstract class Queue extends \yii\base\Component
     const EVENT_BEFORE_POST = 'beforePost';
 
     /**
-     * Event executed before a job is posted to the queue.
+     * Event executed after a job is posted to the queue.
      */
     const EVENT_AFTER_POST = 'afterPost';
+
+    /**
+     * Event executed before a job is delayed.
+     */
+    const EVENT_BEFORE_DELAY = 'beforeDelay';
+
+    /**
+     * Event executed after a job is delayed.
+     */
+    const EVENT_AFTER_DELAY = 'afterDelay';
     
     /**
      * Event executed before a job is being fetched from the queue.
@@ -155,6 +165,39 @@ abstract class Queue extends \yii\base\Component
      * @return boolean Whether operation succeed.
      */
     abstract protected function postJob(Job $job);
+
+    /**
+     * Delay a job to the zset. This will trigger event EVENT_BEFORE_DELAY and 
+     * EVENT_AFTER_DELAY.
+     *
+     * @param Job $job The job.
+     * @param $expire Expire at.
+     * @return boolean Whether operation succeed.
+     */
+    public function delay(Job &$job, $expire)
+    {
+        $this->trigger(selef::EVENT_BEFORE_DELAY, $beforeEvent = new Event(['job' => $job, 'expire' => $expire]));
+        if (!$beforeEvent->isValid) {
+            return false;
+        }
+
+        $return = $this->delayJob($job, $expire);
+        if (!$return) {
+            return false;
+        }
+
+        $this->trigger(self::EVENT_AFTER_DELAY, new Event(['job' => $job, 'expire' => $expire]));
+        return true;
+    }
+
+    /**
+     * Delay a job to the zset. Override this for queue implemention.
+     *
+     * @param Job $job The job.
+     * @param $expire Expire at.
+     * @return boolean Whether operation succeed.
+     */
+    abstract protected function delayJob(Job $job, $expire);
 
     /**
      * Return next job from the queue. This will trigger event EVENT_BEFORE_FETCH

@@ -1,5 +1,5 @@
 {
-    "name": "urbanindo/yii2-queue",
+    "name": "luoxiaojun1992/yii2-queue",
     "description": "Queue component for Yii2",
     "license": "MIT",
     "authors": [
@@ -8,7 +8,6 @@
             "email": "petra.barus@gmail.com"
         }
     ],
-    "minimum-stability": "dev",
     "require": {
         "php": ">=5.5.0",
         "yiisoft/yii2": "*",
