@@ -18,6 +18,11 @@ class Event extends \yii\base\Event
      * @var Job
      */
     public $job;
+
+    /**
+     * @var $expire
+     */
+    public $expire;
     
     /**
      * The return value after a job is being executed.
