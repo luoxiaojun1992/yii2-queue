@@ -117,7 +117,7 @@ class RedisQueue extends \UrbanIndo\Yii2\Queue\Queue
      */
     protected function delayJob(Job $job, $expire)
     {
-        return $this->db->zadd($this->delayKey, \yii\helpers\Json::encode([
+        return $this->db->zadd($this->delayKey, 0, \yii\helpers\Json::encode([
             'id' => $job->id ? : uniqid('queue_', true),
             'data' => empty($job->header['serialized']) ? $this->serialize($job) : $job->header['serialized'],
             'expire' => $expire,
