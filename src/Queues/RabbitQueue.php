@@ -2,6 +2,7 @@
 
 namespace UrbanIndo\Yii2\Queue\Queues;
 
+use UrbanIndo\Yii2\Queue\Job;
 use UrbanIndo\Yii2\Queue\Queue;
 use PhpAmqpLib\Connection\AMQPStreamConnection;
 use PhpAmqpLib\Message\AMQPMessage;
@@ -35,16 +36,19 @@ class RabbitQueue extends Queue
      */
     public function fetchJob()
     {
-        $message = $this->_client->receiveMessage([
-            'QueueUrl' => $this->url,
-            'AttributeNames' => ['ApproximateReceiveCount'],
-            'MaxNumberOfMessages' => 1,
-        ]);
-        if (isset($message['Messages']) && count($message['Messages']) > 0) {
-            return $this->createJobFromMessage($message['Messages'][0]);
-        } else {
-            return false;
+        $job = null;
+
+        $callback = function($msg) use (&$job) {
+            $job = $this->deserialize($msg);
+        };
+
+        $this->channel->basic_consume($this->queue, '', false, true, false, false, $callback);
+
+        while(count($this->channel->callbacks) && !$job) {
+            $this->channel->wait();
         }
+
+        return $job;
     }
 
     /**
@@ -55,16 +59,9 @@ class RabbitQueue extends Queue
      */
     public function postJob(Job $job)
     {
-        $model = $this->_client->sendMessage([
-            'QueueUrl' => $this->url,
-            'MessageBody' => $this->serialize($job),
-        ]);
-        if ($model !== null) {
-            $job->id = $model['MessageId'];
-            return true;
-        } else {
-            return false;
-        }
+        $job->id = uniqid('queue_', true);
+        $this->channel->basic_publish(new AMQPMessage($this->serialize($job)), '', $this->queue);
+        return true;
     }
 
     /**
@@ -75,17 +72,9 @@ class RabbitQueue extends Queue
      */
     protected function delayJob(Job $job, $expire)
     {
-        $model = $this->_client->sendMessage([
-            'QueueUrl' => $this->url,
-            'MessageBody' => $this->serialize($job),
-            'DelaySeconds' => strtotime($expire) - strtotime('now'),
-        ]);
-        if ($model !== null) {
-            $job->id = $model['MessageId'];
-            return true;
-        } else {
-            return false;
-        }
+        $job->id = uniqid('queue_', true);
+        $this->channel->basic_publish(new AMQPMessage($this->serialize($job)), '', $this->queue);
+        return true;
     }
 
     /**
@@ -96,16 +85,7 @@ class RabbitQueue extends Queue
      */
     public function deleteJob(Job $job)
     {
-        if (!empty($job->header['ReceiptHandle'])) {
-            $receiptHandle = $job->header['ReceiptHandle'];
-            $response = $this->_client->deleteMessage([
-                'QueueUrl' => $this->url,
-                'ReceiptHandle' => $receiptHandle,
-            ]);
-            return $response !== null;
-        } else {
-            return false;
-        }
+        return true;
     }
 
     /**
@@ -116,17 +96,8 @@ class RabbitQueue extends Queue
      */
     public function releaseJob(Job $job)
     {
-        if (!empty($job->header['ReceiptHandle'])) {
-            $receiptHandle = $job->header['ReceiptHandle'];
-            $response = $this->_client->changeMessageVisibility([
-                'QueueUrl' => $this->url,
-                'ReceiptHandle' => $receiptHandle,
-                'VisibilityTimeout' => 0,
-            ]);
-            return $response !== null;
-        } else {
-            return false;
-        }
+        $this->channel->basic_publish(new AMQPMessage($this->serialize($job)), '', $this->queue);
+        return true;
     }
 
     /**
@@ -135,7 +106,7 @@ class RabbitQueue extends Queue
      */
     public function getSize()
     {
-        return $this->db->llen($this->key);
+        return $this->channel->queue_declare($this->queue, false, false, false, false);
     }
 
     /**
@@ -144,7 +115,7 @@ class RabbitQueue extends Queue
      */
     public function purge()
     {
-        return $this->db->del($this->key);
+        $this->channel->queue_purge($this->queue, true);
+        return true;
     }
-
 }
