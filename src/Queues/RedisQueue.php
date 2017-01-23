@@ -67,34 +67,28 @@ class RedisQueue extends \UrbanIndo\Yii2\Queue\Queue
      */
     protected function fetchJob()
     {
-        $data = [];
-
+        // Migrating Delayed Queues
         $delayed_queues = $this->db->zrange($this->delayKey, 0, -1);
         foreach ($delayed_queues as $delayed_queue) {
             if ($delayed_queue) {
                 $data = \yii\helpers\Json::decode($delayed_queue);
                 if ($data['expire'] <= date('Y-m-d H:i:s')) {
-                    $this->db->watch($this->delayKey);
+                    $this->db->watch($this->delayKey . '@' . $data['id']);
                     $this->db->multi();
                     $this->db->zrem($this->delayKey, $delayed_queue);
+                    $this->releaseJob($this->deserialize($data['data']));
                     if (!$this->db->exec()) {
                         $this->db->discard();
-                        $data = [];
                     }
-                    break;
                 }
-
-                $data = [];
             }
         }
 
-        if (!$data) {
-            $json = $this->db->lpop($this->key);
-            if ($json == false) {
-                return false;
-            }
-            $data = \yii\helpers\Json::decode($json);
+        $json = $this->db->lpop($this->key);
+        if ($json == false) {
+            return false;
         }
+        $data = \yii\helpers\Json::decode($json);
 
         $job = $this->deserialize($data['data']);
         $job->id = $data['id'];
