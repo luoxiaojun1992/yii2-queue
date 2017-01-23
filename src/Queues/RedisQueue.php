@@ -76,7 +76,10 @@ class RedisQueue extends \UrbanIndo\Yii2\Queue\Queue
                     $this->db->watch($this->delayKey . '@' . $data['id']);
                     $this->db->multi();
                     $this->db->zrem($this->delayKey, $delayed_queue);
-                    $this->releaseJob($this->deserialize($data['data']));
+                    $job = $this->deserialize($data['data']);
+                    $job->id = $data['id'];
+                    $job->header['serialized'] = $data['data'];
+                    $this->releaseJob($job);
                     if (!$this->db->exec()) {
                         $this->db->discard();
                     }
