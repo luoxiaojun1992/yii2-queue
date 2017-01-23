@@ -217,6 +217,20 @@ class Controller extends \yii\console\Controller
     }
 
     /**
+     * Delay a job to the queue.
+     * @param string $route The route.
+     * @param string $expire Expire at.
+     * @param string $data  The data in JSON format.
+     * @return void
+     */
+    public function actionDelay($route, $expire, $data = '{}')
+    {
+        $this->stdout("Delay job to queue...\n");
+        $job = $this->createJob($route, $data);
+        $this->queue->delay($job, $expire);
+    }
+
+    /**
      * Run a task without going to queue.
      *
      * This is useful to test the task controller.
