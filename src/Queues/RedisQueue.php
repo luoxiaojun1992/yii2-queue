@@ -69,16 +69,16 @@ class RedisQueue extends \UrbanIndo\Yii2\Queue\Queue
     {
         $data = [];
 
-        $this->db->watch($this->delayKey);
-
-        $multi = $this->db->multi();
-
-        $delayed_queues = $multi->zrange($this->delayKey, 0, -1);
+        $delayed_queues = $this->db->zrange($this->delayKey, 0, -1);
         foreach ($delayed_queues as $delayed_queue) {
             if ($delayed_queue) {
                 $data = \yii\helpers\Json::decode($delayed_queue);
                 if ($data['expire'] <= date('Y-m-d H:i:s')) {
-                    if (!$multi->zrem($this->delayKey, $delayed_queue)->exec()) {
+                    $this->db->watch($this->delayKey);
+                    $this->db->multi();
+                    $this->db->zrem($this->delayKey, $delayed_queue);
+                    if (!$this->db->exec()) {
+                        $this->db->discard();
                         $data = [];
                     }
                     break;
@@ -89,8 +89,6 @@ class RedisQueue extends \UrbanIndo\Yii2\Queue\Queue
         }
 
         if (!$data) {
-            $multi->discard();
-
             $json = $this->db->lpop($this->key);
             if ($json == false) {
                 return false;
