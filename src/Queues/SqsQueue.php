@@ -117,7 +117,17 @@ class SqsQueue extends \UrbanIndo\Yii2\Queue\Queue
      */
     protected function delayJob(Job $job, $expire)
     {
-
+        $model = $this->_client->sendMessage([
+            'QueueUrl' => $this->url,
+            'MessageBody' => $this->serialize($job),
+            'DelaySeconds' => strtotime($expire) - strtotime('now'),
+        ]);
+        if ($model !== null) {
+            $job->id = $model['MessageId'];
+            return true;
+        } else {
+            return false;
+        }
     }
 
     /**
