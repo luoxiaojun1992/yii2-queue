@@ -7,25 +7,47 @@ use UrbanIndo\Yii2\Queue\Queue;
 
 class KafkaQueue extends Queue
 {
+    protected $producer;
+    protected $consumer;
+
+    public $host = '127.0.0.1';
+    public $port = 2181;
+    public $timeout = 3000;
+    public $group = 'yii2group';
+    public $topic = 'yii2';
+    public $partition = 0;
+
+    /**
+     * @return void
+     */
+    public function init()
+    {
+        parent::init();
+
+        $this->producer = \Kafka\Produce::getInstance(implode(':', [$this->host, $this->port]), $this->timeout);
+        $this->producer->setRequireAck(-1);
+
+        $this->consumer = \Kafka\Consumer::getInstance(implode(':', [$this->host, $this->port]));
+        $this->consumer->setGroup($this->group);
+        $this->consumer->setPartition($this->topic, $this->partition);
+    }
+
     /**
      * Return next job from the queue.
      * @return Job|boolean the job or false if not found.
      */
     public function fetchJob()
     {
-        $job = null;
-
-        $callback = function($msg) use (&$job) {
-            $job = $this->deserialize($msg);
-        };
-
-        $this->channel->basic_consume($this->queue, '', false, true, false, false, $callback);
-
-        while(count($this->channel->callbacks) && !$job) {
-            $this->channel->wait();
+        $result = $this->consumer->fetch();
+        foreach ($result as $topicName => $topic) {
+            foreach ($topic as $partId => $partition) {
+                foreach ($partition as $message) {
+                    return $this->deserialize((string)$message);
+                }
+            }
         }
 
-        return $job;
+        return false;
     }
 
     /**
@@ -37,7 +59,7 @@ class KafkaQueue extends Queue
     public function postJob(Job $job)
     {
         $job->id = uniqid('queue_', true);
-        $this->channel->basic_publish(new AMQPMessage($this->serialize($job)), '', $this->queue);
+        $this->producer->setMessages($this->topic, $this->partition, [$this->serialize($job)]);
         return true;
     }
 
@@ -50,7 +72,7 @@ class KafkaQueue extends Queue
     protected function delayJob(Job $job, $expire)
     {
         $job->id = uniqid('queue_', true);
-        $this->channel->basic_publish(new AMQPMessage($this->serialize($job)), '', $this->queue);
+        $this->producer->setMessages($this->topic, $this->partition, [$this->serialize($job)]);
         return true;
     }
 
@@ -73,7 +95,7 @@ class KafkaQueue extends Queue
      */
     public function releaseJob(Job $job)
     {
-        $this->channel->basic_publish(new AMQPMessage($this->serialize($job)), '', $this->queue);
+        $this->producer->setMessages($this->topic, $this->partition, [$this->serialize($job)]);
         return true;
     }
 
@@ -83,7 +105,7 @@ class KafkaQueue extends Queue
      */
     public function getSize()
     {
-        return $this->channel->queue_declare($this->queue, false, false, false, false);
+        return 0;
     }
 
     /**
@@ -92,7 +114,6 @@ class KafkaQueue extends Queue
      */
     public function purge()
     {
-        $this->channel->queue_purge($this->queue, true);
         return true;
     }
 }

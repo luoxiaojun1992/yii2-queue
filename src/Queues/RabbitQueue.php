@@ -36,7 +36,7 @@ class RabbitQueue extends Queue
      */
     public function fetchJob()
     {
-        $job = null;
+        $job = false;
 
         $callback = function($msg) use (&$job) {
             $job = $this->deserialize($msg);
