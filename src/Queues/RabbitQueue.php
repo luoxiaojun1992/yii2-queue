@@ -39,7 +39,7 @@ class RabbitQueue extends Queue
         $job = false;
 
         $callback = function($msg) use (&$job) {
-            $job = $this->deserialize($msg);
+            $job = $this->deserialize($msg->body);
         };
 
         $this->channel->basic_consume($this->queue, '', false, true, false, false, $callback);
