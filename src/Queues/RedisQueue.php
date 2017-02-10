@@ -80,7 +80,9 @@ class RedisQueue extends \UrbanIndo\Yii2\Queue\Queue
                     $job->id = $data['id'];
                     $job->header['serialized'] = $data['data'];
                     $this->releaseJob($job);
-                    if (!$this->db->exec()) {
+                    try {
+                        $this->db->exec();
+                    } catch (\Exception $e) {
                         $this->db->discard();
                     }
                 }
