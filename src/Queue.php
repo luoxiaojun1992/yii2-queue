@@ -358,9 +358,8 @@ abstract class Queue extends \yii\base\Component
         $route = $job['route'];
         $signature = [];
         if (isset($job['type']) && $job['type'] == Job::TYPE_CALLABLE) {
-            $serializer = new \SuperClosure\Serializer();
             $signature['route'] = $route;
-            $route = $serializer->unserialize($route);
+            $route = unserialize($route);
         }
         $data = \yii\helpers\ArrayHelper::getValue($job, 'data', []);
         $obj = new Job([
@@ -403,8 +402,7 @@ abstract class Queue extends \yii\base\Component
         $return = [];
         if ($job->isCallable()) {
             $return['type'] = Job::TYPE_CALLABLE;
-            $serializer = new \SuperClosure\Serializer();
-            $return['route'] = $serializer->serialize($job->route);
+            $return['route'] = serialize($job->route);
         } else {
             $return['type'] = Job::TYPE_REGULAR;
             $return['route'] = $job->route;
