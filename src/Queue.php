@@ -174,7 +174,7 @@ abstract class Queue extends \yii\base\Component
      * @param $expire Expire at.
      * @return boolean Whether operation succeed.
      */
-    public function delay(Job &$job, $expire)
+    public function delay(Job $job, $expire)
     {
         $this->trigger(self::EVENT_BEFORE_DELAY, $beforeEvent = new Event(['job' => $job, 'expire' => $expire]));
         if (!$beforeEvent->isValid) {
